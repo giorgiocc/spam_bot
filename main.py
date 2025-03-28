@@ -2,28 +2,25 @@ import asyncio
 import threading
 from telethon import TelegramClient, events
 from flask import Flask
+import os
 
-# Initialize Flask application
+
 app = Flask(__name__)
 
 @app.route('/')
 def hello():
     return 'Hello'
 
-# Replace these with your own API credentials
 api_id = 27129882
 api_hash = '13cf2eb9849b490a933c9beb89de5edf'
 session_name = 'my_session'
 
-# Target bot username you want to interact with
 target_bot = '@Vinmege_bot'
 
-# Create the Telethon client
 client = TelegramClient(session_name, api_id, api_hash)
 
-# Global state variables
 in_chat = False
-trigger_enabled = True  # This flag controls whether the bot reacts
+trigger_enabled = True  
 
 async def send_message(text: str):
     """
@@ -103,12 +100,11 @@ async def main():
     await client.run_until_disconnected()
 
 def run_flask():
-    app.run(port=5000)
+    port = int(os.environ.get("PORT", 5000))  
+    app.run(host="0.0.0.0", port=port)  
 
 if __name__ == "__main__":
-    # Start Flask app in a separate thread
     flask_thread = threading.Thread(target=run_flask)
     flask_thread.start()
 
-    # Run the Telethon client
     asyncio.run(main())
