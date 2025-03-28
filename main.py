@@ -1,0 +1,114 @@
+import asyncio
+import threading
+from telethon import TelegramClient, events
+from flask import Flask
+
+# Initialize Flask application
+app = Flask(__name__)
+
+@app.route('/')
+def hello():
+    return 'Hello'
+
+# Replace these with your own API credentials
+api_id = 27129882
+api_hash = '13cf2eb9849b490a933c9beb89de5edf'
+session_name = 'my_session'
+
+# Target bot username you want to interact with
+target_bot = '@Vinmege_bot'
+
+# Create the Telethon client
+client = TelegramClient(session_name, api_id, api_hash)
+
+# Global state variables
+in_chat = False
+trigger_enabled = True  # This flag controls whether the bot reacts
+
+async def send_message(text: str):
+    """
+    Sends a message to the target bot.
+    """
+    try:
+        await client.send_message(target_bot, text)
+        print(f"Sent: {text}")
+    except Exception as e:
+        print("Error sending message:", e)
+
+@client.on(events.NewMessage(chats=target_bot))
+async def target_bot_handler(event):
+    """
+    Handles incoming messages from the target bot.
+    """
+    global in_chat, trigger_enabled
+    if not trigger_enabled:
+        print("Trigger is off. Ignoring incoming message.")
+        return
+
+    text = event.raw_text
+    print("Received from target:", text)
+
+    if "You're already in queue" in text:
+        print("Detected queue message. Sending /next")
+        await send_message("/next")
+
+    elif "Partner found!" in text:
+        print("Detected 'Partner found!'")
+        await send_message("t.me/GeorgiaChatBot")
+        await send_message("გადმო ჩატბოთში")
+        await send_message("@GeorgiaChatBot")
+        in_chat = True
+
+        await asyncio.sleep(30)
+
+        messages = await client.get_messages(target_bot, limit=5)
+        ended_detected = any("Your partner ended the chat" in msg.raw_text for msg in messages)
+
+        if ended_detected:
+            print("Detected end-of-chat after 30 seconds.")
+        else:
+            print("No end-of-chat detected within 30 seconds.")
+
+        await send_message("/next")
+        in_chat = False
+
+    elif "Your partner ended the chat" in text:
+        print("Detected 'Your partner ended the chat'")
+        if not in_chat:
+            await send_message("/next")
+
+@client.on(events.NewMessage(from_users="me"))
+async def trigger_control_handler(event):
+    """
+    Handles trigger control commands sent from your own account.
+    Send '/trigger_on' to enable or '/trigger_off' to disable the automation.
+    """
+    global trigger_enabled
+    text = event.raw_text.lower().strip()
+    if text == "/trigger_on":
+        trigger_enabled = True
+        print("Trigger turned ON")
+        await event.reply("Trigger is now ON")
+    elif text == "/trigger_off":
+        trigger_enabled = False
+        print("Trigger turned OFF")
+        await event.reply("Trigger is now OFF")
+
+async def main():
+    print("Connecting to Telegram...")
+    await client.start()
+    print("Connected!")
+    await send_message("/start")
+    print("Waiting for messages from", target_bot)
+    await client.run_until_disconnected()
+
+def run_flask():
+    app.run(port=5000)
+
+if __name__ == "__main__":
+    # Start Flask app in a separate thread
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.start()
+
+    # Run the Telethon client
+    asyncio.run(main())
