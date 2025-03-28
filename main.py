@@ -4,23 +4,22 @@ from telethon import TelegramClient, events
 from flask import Flask
 import os
 
-
 app = Flask(__name__)
 
 @app.route('/')
 def hello():
-    return 'Hello'
+    return 'Hello, Bot is Running!'
 
 api_id = 27129882
 api_hash = '13cf2eb9849b490a933c9beb89de5edf'
 session_name = 'my_session'
-
 target_bot = '@Vinmege_bot'
 
 client = TelegramClient(session_name, api_id, api_hash)
 
 in_chat = False
 trigger_enabled = True  
+blocked_detected = False  
 
 async def send_message(text: str):
     """
@@ -37,7 +36,7 @@ async def target_bot_handler(event):
     """
     Handles incoming messages from the target bot.
     """
-    global in_chat, trigger_enabled
+    global in_chat, trigger_enabled, blocked_detected
     if not trigger_enabled:
         print("Trigger is off. Ignoring incoming message.")
         return
@@ -45,7 +44,17 @@ async def target_bot_handler(event):
     text = event.raw_text
     print("Received from target:", text)
 
-    if "You're already in queue" in text:
+    if "You're blocked. Try again later." in text:
+        print("Detected block message. Turning off bot for 30 minutes.")
+        trigger_enabled = False
+        blocked_detected = True
+        await asyncio.sleep(1800)  
+        print("Reactivating bot after 30 minutes.")
+        trigger_enabled = True
+        blocked_detected = False
+        await send_message("/start")
+
+    elif "You're already in queue" in text:
         print("Detected queue message. Sending /next")
         await send_message("/next")
 
@@ -78,7 +87,7 @@ async def target_bot_handler(event):
 async def trigger_control_handler(event):
     """
     Handles trigger control commands sent from your own account.
-    Send '/trigger_on' to enable or '/trigger_off' to disable the automation.
+    Send '/on' to enable or '/off' to disable the automation.
     """
     global trigger_enabled
     text = event.raw_text.lower().strip()
@@ -104,7 +113,8 @@ def run_flask():
     app.run(host="0.0.0.0", port=port)  
 
 if __name__ == "__main__":
-    flask_thread = threading.Thread(target=run_flask)
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
     flask_thread.start()
 
-    asyncio.run(main())
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main())
