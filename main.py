@@ -82,11 +82,11 @@ async def trigger_control_handler(event):
     """
     global trigger_enabled
     text = event.raw_text.lower().strip()
-    if text == "/trigger_on":
+    if text == "/on":
         trigger_enabled = True
         print("Trigger turned ON")
         await event.reply("Trigger is now ON")
-    elif text == "/trigger_off":
+    elif text == "/off":
         trigger_enabled = False
         print("Trigger turned OFF")
         await event.reply("Trigger is now OFF")
