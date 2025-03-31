@@ -1,5 +1,6 @@
 import asyncio
 import threading
+import time  
 from telethon import TelegramClient, events
 from flask import Flask
 import os
@@ -20,6 +21,7 @@ client = TelegramClient(session_name, api_id, api_hash)
 in_chat = False
 trigger_enabled = True  
 blocked_detected = False  
+last_activity_time = None 
 
 async def send_message(text: str):
     """
@@ -36,20 +38,21 @@ async def target_bot_handler(event):
     """
     Handles incoming messages from the target bot.
     """
-    global in_chat, trigger_enabled, blocked_detected
+    global in_chat, trigger_enabled, blocked_detected, last_activity_time
     if not trigger_enabled:
         print("Trigger is off. Ignoring incoming message.")
         return
 
+    last_activity_time = time.time()
     text = event.raw_text
     print("Received from target:", text)
 
     if "You're blocked. Try again later." in text:
-        print("Detected block message. Turning off bot for 30 minutes.")
+        print("Detected block message. Turning off bot for 15 minutes.")
         trigger_enabled = False
         blocked_detected = True
-        await asyncio.sleep(1800)  
-        print("Reactivating bot after 30 minutes.")
+        await asyncio.sleep(900)  
+        print("Reactivating bot after 15 minutes.")
         trigger_enabled = True
         blocked_detected = False
         await send_message("/start")
@@ -100,10 +103,28 @@ async def trigger_control_handler(event):
         print("Trigger turned OFF")
         await event.reply("Trigger is now OFF")
 
+async def check_inactivity():
+    """
+    Periodically checks for inactivity and sends /start if needed.
+    """
+    global last_activity_time, trigger_enabled, blocked_detected
+    inactivity_threshold = 300 
+    while True:
+        await asyncio.sleep(10)  
+        if trigger_enabled and not blocked_detected and last_activity_time:
+            current_time = time.time()
+            if current_time - last_activity_time > inactivity_threshold:
+                print(f"No activity for {inactivity_threshold} seconds. Sending /start")
+                await send_message("/start")
+                last_activity_time = time.time()
+
 async def main():
     print("Connecting to Telegram...")
     await client.start()
     print("Connected!")
+    global last_activity_time
+    last_activity_time = time.time()
+    asyncio.create_task(check_inactivity())
     await send_message("/start")
     print("Waiting for messages from", target_bot)
     await client.run_until_disconnected()
